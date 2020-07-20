@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:intl/intl.dart';
 
-import '../main.dart';
+import '../constants.dart';
 import '../widgets/home_page_top_container.dart';
 import '../widgets/custom_app_bottom_bar.dart';
 
@@ -46,53 +49,57 @@ class HomePage extends StatelessWidget {
       ),
       Container(
         height: 240.0,
-        child: ListView(
-          scrollDirection: Axis.horizontal,
-          children: cityCards,
-        ),
+        child: StreamBuilder(
+            stream: Firestore.instance
+                .collection('cities')
+                .orderBy('newPrice')
+                .snapshots(),
+            builder: (context, snapshot) {
+              return !snapshot.hasData
+                  ? Center(child: CircularProgressIndicator())
+                  : _buildCitiesList(context, snapshot.data.documents);
+            }),
       ),
     ],
   );
 }
 
-List<CityCard> cityCards = [
-  CityCard(
-    imagePath: 'assets/images/athens.jpg',
-    cityName: 'Athens',
-    monthYear: 'Apr 2020',
-    discount: '40',
-    oldPrice: '9999',
-    newPrice: '4999',
-  ),
-  CityCard(
-    imagePath: 'assets/images/lasvegas.jpg',
-    cityName: 'Las Vegas',
-    monthYear: 'Feb 2020',
-    discount: '45',
-    oldPrice: '4299',
-    newPrice: '2250',
-  ),
-  CityCard(
-    imagePath: 'assets/images/sydney.jpeg',
-    cityName: 'Sydney',
-    monthYear: 'May 2020',
-    discount: '50',
-    oldPrice: '5999',
-    newPrice: '3999',
-  ),
-];
+Widget _buildCitiesList(
+    BuildContext context, List<DocumentSnapshot> snapshots) {
+  return ListView.builder(
+      itemCount: snapshots.length,
+      scrollDirection: Axis.horizontal,
+      itemBuilder: (context, index) {
+        return CityCard(city: City.fromSnapshot(snapshots[index]));
+      });
+}
+
+class City {
+  final String imagePath, cityName, monthYear, discount;
+  final int oldPrice, newPrice;
+
+  City.fromMap(Map<String, dynamic> map)
+      : assert(map['cityName'] != null),
+        assert(map['monthYear'] != null),
+        assert(map['discount'] != null),
+        assert(map['imagePath'] != null),
+        imagePath = map['imagePath'],
+        cityName = map['cityName'],
+        monthYear = map['monthYear'],
+        discount = map['discount'],
+        oldPrice = map['oldPrice'],
+        newPrice = map['newPrice'];
+
+  City.fromSnapshot(DocumentSnapshot snapshot) : this.fromMap(snapshot.data);
+}
+
+final formatCurrency = NumberFormat.simpleCurrency();
 
 class CityCard extends StatelessWidget {
-  final String imagePath, cityName, monthYear, discount, oldPrice, newPrice;
+  final City city;
 
-  const CityCard({
-    this.imagePath,
-    this.cityName,
-    this.monthYear,
-    this.discount,
-    this.oldPrice,
-    this.newPrice,
-  });
+  CityCard({this.city});
+
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -108,9 +115,17 @@ class CityCard extends StatelessWidget {
                 Container(
                   height: 210.0,
                   width: 160.0,
-                  child: Image.asset(
-                    imagePath,
+                  child: CachedNetworkImage(
+                    imageUrl: city.imagePath,
                     fit: BoxFit.cover,
+                    placeholder: (context, url) => Center(
+                      heightFactor: 18.0,
+                      child: CircularProgressIndicator(),
+                    ),
+                    errorWidget: (context, url, error) => Icon(
+                      Icons.error,
+                      color: Colors.black,
+                    ),
                   ),
                 ),
                 Positioned(
@@ -141,7 +156,7 @@ class CityCard extends StatelessWidget {
                       Column(
                         children: <Widget>[
                           Text(
-                            cityName,
+                            '${city.cityName}',
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 18.0,
@@ -149,7 +164,7 @@ class CityCard extends StatelessWidget {
                             ),
                           ),
                           Text(
-                            monthYear,
+                            '${city.monthYear}',
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 14.0,
@@ -167,7 +182,7 @@ class CityCard extends StatelessWidget {
                           shape: BoxShape.rectangle,
                         ),
                         child: Text(
-                          '$discount%',
+                          '${city.discount}%',
                           style: TextStyle(
                             fontSize: 14.0,
                           ),
@@ -187,7 +202,7 @@ class CityCard extends StatelessWidget {
                 width: 5.0,
               ),
               Text(
-                '\$$newPrice',
+                '${formatCurrency.format(city.newPrice)}',
                 style: TextStyle(
                   color: Colors.black,
                   fontWeight: FontWeight.bold,
@@ -198,7 +213,7 @@ class CityCard extends StatelessWidget {
                 width: 5.0,
               ),
               Text(
-                '\$$oldPrice',
+                "(${formatCurrency.format(city.oldPrice)})",
                 style: TextStyle(
                   color: Colors.grey,
                   fontWeight: FontWeight.normal,

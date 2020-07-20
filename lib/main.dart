@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
 
 import './pages/home_page.dart';
+import 'constants.dart';
 
-void main() => runApp(MyApp());
-
-ThemeData appTheme = ThemeData(
-  primaryColor: const Color(0xFFF3791A),
-  fontFamily: 'Oxygen',
-);
+void main() {
+  runApp(MyApp());
+}
 
 class MyApp extends StatelessWidget {
   @override

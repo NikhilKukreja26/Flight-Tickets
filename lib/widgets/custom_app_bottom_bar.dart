@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../main.dart';
+import '../constants.dart';
 
 class CustomAppBottomBar extends StatelessWidget {
   final List<BottomNavigationBarItem> bottomBarItems = [];

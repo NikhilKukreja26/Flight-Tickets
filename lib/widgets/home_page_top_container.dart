@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-import '../main.dart';
 import 'custom_shape_clipper.dart';
+import '../constants.dart';
+import '../pages/flight_list.dart';
 
 const TextStyle dropDownLabelStyle = TextStyle(
   color: Colors.white,
@@ -13,19 +15,37 @@ const TextStyle dropDownMenuItemStyle = TextStyle(
   fontSize: 16.0,
 );
 
+List<String> locations = ['Boston (BOS)', 'New York City (JFK)'];
+
+class Location {
+  final String name;
+
+  Location.fromMap(Map<String, dynamic> map)
+      : assert(map['name'] != null),
+        name = map['name'];
+
+  Location.fromSnapshot(DocumentSnapshot snapshot)
+      : this.fromMap(snapshot.data);
+}
+
 class HomePageTopContainer extends StatefulWidget {
   @override
   _HomePageTopContainerState createState() => _HomePageTopContainerState();
 }
 
 class _HomePageTopContainerState extends State<HomePageTopContainer> {
-  Color firstColor = Color(0xFFF47D15);
-  Color secondColor = Color(0xFFEF772C);
-
-  List<String> locations = ['Boston (BOS)', 'New York City (JFK)'];
-
   var selectedLocationIndex = 0;
   var isFlightSelected = true;
+
+  final TextEditingController _searchFieldController =
+      TextEditingController(text: locations[1]);
+
+  addLocations(BuildContext context, List<DocumentSnapshot> snapshots) {
+    for (int i = 0; i < snapshots.length; i++) {
+      final Location location = Location.fromSnapshot(snapshots[i]);
+      locations.add(location.name);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -35,71 +55,72 @@ class _HomePageTopContainerState extends State<HomePageTopContainer> {
           clipper: CustomShapeClipper(),
           child: Container(
             height: 400.0,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomLeft,
-                colors: [
-                  firstColor,
-                  secondColor,
-                ],
-              ),
-            ),
+            decoration: containerBoxDecoration,
             child: Column(
               children: <Widget>[
                 const SizedBox(height: 50.0),
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Row(
-                    children: <Widget>[
-                      Icon(
-                        Icons.location_on,
-                        color: Colors.white,
-                      ),
-                      const SizedBox(width: 16.0),
-                      PopupMenuButton(
-                        onSelected: (index) {
-                          setState(() {
-                            selectedLocationIndex = index;
-                          });
-                        },
-                        itemBuilder: (context) => <PopupMenuItem<int>>[
-                          PopupMenuItem(
-                            child: Text(
-                              locations[0],
-                              style: dropDownMenuItemStyle,
-                            ),
-                            value: 0,
-                          ),
-                          PopupMenuItem(
-                            child: Text(
-                              locations[1],
-                              style: dropDownMenuItemStyle,
-                            ),
-                            value: 1,
-                          ),
-                        ],
-                        child: Row(
-                          children: <Widget>[
-                            Text(
-                              locations[selectedLocationIndex],
-                              style: dropDownLabelStyle,
-                            ),
-                            Icon(
-                              Icons.keyboard_arrow_down,
-                              color: Colors.white,
-                            ),
-                          ],
-                        ),
-                      ),
-                      Spacer(),
-                      Icon(
-                        Icons.settings,
-                        color: Colors.white,
-                      ),
-                    ],
-                  ),
-                ),
+                StreamBuilder<Object>(
+                    stream:
+                        Firestore.instance.collection('locations').snapshots(),
+                    builder: (context, snapshot) {
+                      // if (snapshot.hasData)
+                      //   addLocations(context, snapshot.data.documents);
+                      return !snapshot.hasData
+                          ? Container()
+                          : Padding(
+                              padding: const EdgeInsets.all(16.0),
+                              child: Row(
+                                children: <Widget>[
+                                  Icon(
+                                    Icons.location_on,
+                                    color: Colors.white,
+                                  ),
+                                  const SizedBox(width: 16.0),
+                                  PopupMenuButton(
+                                    onSelected: (index) {
+                                      setState(() {
+                                        selectedLocationIndex = index;
+                                      });
+                                    },
+                                    itemBuilder: (context) =>
+                                        <PopupMenuItem<int>>[
+                                      PopupMenuItem(
+                                        child: Text(
+                                          locations[0],
+                                          style: dropDownMenuItemStyle,
+                                        ),
+                                        value: 0,
+                                      ),
+                                      PopupMenuItem(
+                                        child: Text(
+                                          locations[1],
+                                          style: dropDownMenuItemStyle,
+                                        ),
+                                        value: 1,
+                                      ),
+                                    ],
+                                    child: Row(
+                                      children: <Widget>[
+                                        Text(
+                                          locations[selectedLocationIndex],
+                                          style: dropDownLabelStyle,
+                                        ),
+                                        Icon(
+                                          Icons.keyboard_arrow_down,
+                                          color: Colors.white,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Spacer(),
+                                  Icon(
+                                    Icons.settings,
+                                    color: Colors.white,
+                                  ),
+                                ],
+                              ),
+                            );
+                    }),
                 const SizedBox(height: 50.0),
                 Text(
                   'Where would\nyou want to go',
@@ -116,9 +137,7 @@ class _HomePageTopContainerState extends State<HomePageTopContainer> {
                     elevation: 5.0,
                     borderRadius: BorderRadius.circular(30.0),
                     child: TextField(
-                      controller: TextEditingController(
-                        text: locations[1],
-                      ),
+                      controller: _searchFieldController,
                       style: dropDownMenuItemStyle,
                       cursorColor: appTheme.primaryColor,
                       decoration: InputDecoration(
@@ -128,9 +147,24 @@ class _HomePageTopContainerState extends State<HomePageTopContainer> {
                         suffixIcon: Material(
                           elevation: 2.0,
                           borderRadius: BorderRadius.circular(30.0),
-                          child: Icon(
-                            Icons.search,
-                            color: Colors.black,
+                          child: InkWell(
+                            onTap: () {
+                              FocusScope.of(context).unfocus();
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (context) => InheritedFlightListing(
+                                    fromLocation:
+                                        locations[selectedLocationIndex],
+                                    toLocation: _searchFieldController.text,
+                                    child: FlightListingScreen(),
+                                  ),
+                                ),
+                              );
+                            },
+                            child: Icon(
+                              Icons.search,
+                              color: Colors.black,
+                            ),
                           ),
                         ),
                       ),
